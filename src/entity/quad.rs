@@ -37,7 +37,7 @@ impl<'a, T: Shader> Entity for Quad<'a, T> {
 }
 
 impl<'a, T: Shader> Quad<'a, T> {
-    pub fn new(gl: &WebGlRenderingContext, shader: &'a T) -> Self {
+    pub fn new(gl: &'a WebGlRenderingContext, shader: &'a T) -> Self {
         let vertices_rect: [f32; 8] = [
             0.0, 1.0, //x, y
             0.0, 0.0, //x, y

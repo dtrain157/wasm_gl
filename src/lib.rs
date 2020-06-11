@@ -35,7 +35,7 @@ extern "C" {
 #[wasm_bindgen]
 pub struct WebGlClient {
     gl: WebGlRenderingContext,
-    entities: Vec<Quad<'a, T: Shader>>,
+    entities: Vec<Box<dyn Entity>>,
     shader: BasicShader,
 }
 
@@ -54,14 +54,14 @@ impl WebGlClient {
         }
     }
 
-    pub fn update(&self, _time: f32, height: f32, width: f32) -> Result<(), JsValue> {
+    pub fn update(&self, _time: f32, _height: f32, _width: f32) -> Result<(), JsValue> {
         //update_app_state(width, height);
         self.entities.iter().map(|e| e.update(_time));
         Ok(())
     }
 
     pub fn render(&self) {
-        let current_state = get_current_app_state();
+        let _current_state = get_current_app_state();
 
         self.gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 
