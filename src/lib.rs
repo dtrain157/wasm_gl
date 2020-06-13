@@ -7,8 +7,8 @@ mod shader;
 use entity::entity::Entity;
 use entity::quad::Quad;
 use nalgebra_glm as glm;
-use shader::basic_shader::BasicShader;
-use shader::shader::Shader;
+use shader::shader::ShaderType;
+use shader::shader_controller::ShaderController;
 use std::sync::Arc;
 use std::sync::Mutex;
 use wasm_bindgen::prelude::*;
@@ -34,9 +34,9 @@ extern "C" {
 
 #[wasm_bindgen]
 pub struct WebGlClient {
-    gl: WebGlRenderingContext,
     entities: Vec<Box<dyn Entity>>,
-    shader: BasicShader,
+    shader_controller: ShaderController,
+    gl: WebGlRenderingContext,
 }
 
 #[wasm_bindgen]
@@ -45,30 +45,35 @@ impl WebGlClient {
     pub fn new() -> Self {
         console_error_panic_hook::set_once();
         let gl = Self::init_webgl_context().unwrap();
-        let shader = BasicShader::new(&gl).unwrap();
+        let shader_controller = ShaderController::new(&gl);
 
         Self {
-            entities: vec![Box::new(Quad::new(&gl, &shader))],
-            shader: shader,
+            entities: vec![Box::new(Quad::new(&gl, ShaderType::BasicShader))],
             gl: gl,
+            shader_controller: shader_controller,
         }
     }
 
     pub fn update(&self, _time: f32, _height: f32, _width: f32) -> Result<(), JsValue> {
         //update_app_state(width, height);
-        self.entities.iter().map(|e| e.update(_time));
+        for e in self.entities.iter() {
+            e.update(_time);
+        }
         Ok(())
     }
 
-    pub fn render(&self) {
-        let _current_state = get_current_app_state();
+    pub fn render(&mut self) {
+        let current_state = get_current_app_state();
 
         self.gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 
-        let position = glm::vec3(0.5, 0.5, 0.5);
-        let rotation = glm::vec3(0.0, 0.0, 0.3);
-        let scale = glm::vec3(1.0, 1.0, 1.0);
-        self.entities.iter().map(|e| e.render(&self.gl, &position, &rotation, &scale));
+        let position = glm::vec3(0.0, 0.0, 0.0);
+        let rotation = glm::vec3(0.0, 0.0, 0.0);
+        let scale = glm::vec3(0.2, 0.2, 1.0);
+
+        for e in self.entities.iter() {
+            e.render(&self.gl, &mut self.shader_controller, &position, &rotation, &scale);
+        }
     }
 }
 

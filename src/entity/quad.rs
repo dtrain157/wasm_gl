@@ -1,43 +1,50 @@
 use super::entity::Entity;
-use crate::shader::shader::Shader;
+use crate::shader::shader::ShaderType;
+use crate::shader::shader_controller::ShaderController;
 use js_sys::WebAssembly;
 use nalgebra_glm as glm;
 use wasm_bindgen::JsCast;
 use web_sys::WebGlRenderingContext as GL;
 use web_sys::*;
 
-pub struct Quad<'a, T: Shader> {
-    shader: &'a T,
+pub struct Quad {
+    shader_type: ShaderType,
     rect_vertex_array_buffer: WebGlBuffer,
     rect_index_array_length: usize,
 }
 
-impl<'a, T: Shader> Entity for Quad<'a, T> {
-    fn render(&self, gl: &WebGlRenderingContext, position: &glm::Vec3, rotation: &glm::Vec3, scale: &glm::Vec3) {
-        gl.use_program(Some(&self.shader.get_program()));
-        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.rect_vertex_array_buffer));
-        gl.vertex_attrib_pointer_with_i32(0, 2, GL::FLOAT, false, 0, 0);
-        gl.enable_vertex_attrib_array(0);
+impl Entity for Quad {
+    fn render(&self, gl: &WebGlRenderingContext, shader_controller: &ShaderController, position: &glm::Vec3, rotation: &glm::Vec3, scale: &glm::Vec3) {
+        let shader = shader_controller.get_shader(&self.shader_type);
+        match shader {
+            Some(shader) => {
+                shader_controller.use_shader(gl, self.shader_type);
+                gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.rect_vertex_array_buffer));
+                gl.vertex_attrib_pointer_with_i32(0, 2, GL::FLOAT, false, 0, 0);
+                gl.enable_vertex_attrib_array(0);
 
-        gl.uniform4f(self.shader.get_uniform_location(&gl, "u_Colour").as_ref(), 0.1, 0.9, 0.1, 1.0);
+                gl.uniform4f(shader.get_uniform_location(&gl, "u_Colour").as_ref(), 0.1, 0.9, 0.1, 1.0);
 
-        let translate = glm::translate(&glm::Mat4::identity(), position);
-        let rotate_x = glm::rotate(&glm::Mat4::identity(), rotation.x, &glm::vec3(1.0, 0.0, 0.0));
-        let rotate_y = glm::rotate(&glm::Mat4::identity(), rotation.y, &glm::vec3(0.0, 1.0, 0.0));
-        let rotate_z = glm::rotate(&glm::Mat4::identity(), rotation.z, &glm::vec3(0.0, 0.0, 1.0));
-        let scale = glm::scale(&glm::Mat4::identity(), scale);
-        let transformation_matrix = translate * rotate_x * rotate_y * rotate_z * scale;
+                let translate = glm::translate(&glm::Mat4::identity(), position);
+                let rotate_x = glm::rotate(&glm::Mat4::identity(), rotation.x, &glm::vec3(1.0, 0.0, 0.0));
+                let rotate_y = glm::rotate(&glm::Mat4::identity(), rotation.y, &glm::vec3(0.0, 1.0, 0.0));
+                let rotate_z = glm::rotate(&glm::Mat4::identity(), rotation.z, &glm::vec3(0.0, 0.0, 1.0));
+                let scale = glm::scale(&glm::Mat4::identity(), scale);
+                let transformation_matrix = translate * rotate_x * rotate_y * rotate_z * scale;
 
-        gl.uniform_matrix4fv_with_f32_array(self.shader.get_uniform_location(&gl, "u_Transform").as_ref(), false, &transformation_matrix.as_slice());
+                gl.uniform_matrix4fv_with_f32_array(shader.get_uniform_location(&gl, "u_Transform").as_ref(), false, &transformation_matrix.as_slice());
 
-        gl.draw_elements_with_i32(GL::TRIANGLES, self.rect_index_array_length as i32, GL::UNSIGNED_SHORT, 0);
+                gl.draw_elements_with_i32(GL::TRIANGLES, self.rect_index_array_length as i32, GL::UNSIGNED_SHORT, 0);
+            }
+            None => {}
+        }
     }
 
     fn update(&self, _time: f32) {}
 }
 
-impl<'a, T: Shader> Quad<'a, T> {
-    pub fn new(gl: &'a WebGlRenderingContext, shader: &'a T) -> Self {
+impl Quad {
+    pub fn new(gl: &WebGlRenderingContext, shader_type: ShaderType) -> Self {
         let vertices_rect: [f32; 8] = [
             0.0, 1.0, //x, y
             0.0, 0.0, //x, y
@@ -62,9 +69,9 @@ impl<'a, T: Shader> Quad<'a, T> {
         gl.buffer_data_with_array_buffer_view(GL::ELEMENT_ARRAY_BUFFER, &ind_array, GL::STATIC_DRAW);
 
         Self {
+            shader_type: shader_type,
             rect_vertex_array_buffer: vertex_array_buffer,
             rect_index_array_length: indices_rect.len(),
-            shader: shader,
         }
     }
 }

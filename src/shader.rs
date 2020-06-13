@@ -1,2 +1,2 @@
-pub mod basic_shader;
 pub mod shader;
+pub mod shader_controller;
