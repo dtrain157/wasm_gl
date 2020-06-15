@@ -1,16 +1,16 @@
 #[macro_use]
 extern crate lazy_static;
 
+mod app_state;
 mod entity;
 mod shader;
 
+use app_state::*;
 use entity::entity::Entity;
+use entity::graph3d::Graph3d;
 use entity::quad::Quad;
 use nalgebra_glm as glm;
-use shader::shader::ShaderType;
-use shader::shader_controller::ShaderController;
-use std::sync::Arc;
-use std::sync::Mutex;
+use shader::shader_controller::{ShaderController, ShaderType};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
@@ -48,23 +48,23 @@ impl WebGlClient {
         let shader_controller = ShaderController::new(&gl);
 
         Self {
-            entities: vec![Box::new(Quad::new(&gl, ShaderType::BasicShader))],
+            //entities: vec![Box::new(Quad::new(&gl, ShaderType::BasicShader))],
+            entities: vec![Box::new(Graph3d::new(&gl, ShaderType::Graph3dShader, 10))],
             gl: gl,
             shader_controller: shader_controller,
         }
     }
 
-    pub fn update(&self, _time: f32, _height: f32, _width: f32) -> Result<(), JsValue> {
-        //update_app_state(width, height);
+    pub fn update(&self, time: f32, height: f32, width: f32) -> Result<(), JsValue> {
+        update_app_state(width, height);
+        log(&format! {"Update {} x {}", width as i32, height as i32});
         for e in self.entities.iter() {
-            e.update(_time);
+            e.update(time);
         }
         Ok(())
     }
 
     pub fn render(&mut self) {
-        let current_state = get_current_app_state();
-
         self.gl.clear(GL::COLOR_BUFFER_BIT | GL::DEPTH_BUFFER_BIT);
 
         let position = glm::vec3(0.0, 0.0, 0.0);
@@ -90,37 +90,5 @@ impl WebGlClient {
         gl.clear_depth(1.0);
 
         Ok(gl)
-    }
-}
-
-lazy_static! {
-    static ref APP_STATE: Mutex<Arc<AppState>> = Mutex::new(Arc::new(AppState::new()));
-}
-
-pub fn update_app_state(canvas_width: f32, canvas_height: f32) {
-    let mut data = APP_STATE.lock().unwrap();
-
-    *data = Arc::new(AppState {
-        canvas_width: canvas_width,
-        canvas_height: canvas_height,
-        ..*data.clone()
-    })
-}
-
-pub fn get_current_app_state() -> Arc<AppState> {
-    APP_STATE.lock().unwrap().clone()
-}
-
-pub struct AppState {
-    pub canvas_height: f32,
-    pub canvas_width: f32,
-}
-
-impl AppState {
-    fn new() -> Self {
-        Self {
-            canvas_height: 0.0,
-            canvas_width: 0.0,
-        }
     }
 }

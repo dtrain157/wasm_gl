@@ -3,11 +3,6 @@ use std::collections::HashMap;
 use web_sys::WebGlRenderingContext as GL;
 use web_sys::*;
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum ShaderType {
-    BasicShader,
-}
-
 pub struct Shader {
     program: WebGlProgram,
     uniforms: RefCell<HashMap<String, WebGlUniformLocation>>,

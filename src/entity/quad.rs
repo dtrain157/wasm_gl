@@ -1,6 +1,6 @@
 use super::entity::Entity;
-use crate::shader::shader::ShaderType;
-use crate::shader::shader_controller::ShaderController;
+use crate::app_state::*;
+use crate::shader::shader_controller::{ShaderController, ShaderType};
 use js_sys::WebAssembly;
 use nalgebra_glm as glm;
 use wasm_bindgen::JsCast;
@@ -25,12 +25,13 @@ impl Entity for Quad {
 
                 gl.uniform4f(shader.get_uniform_location(&gl, "u_Colour").as_ref(), 0.1, 0.9, 0.1, 1.0);
 
+                let current_state = get_current_app_state();
                 let translate = glm::translate(&glm::Mat4::identity(), position);
                 let rotate_x = glm::rotate(&glm::Mat4::identity(), rotation.x, &glm::vec3(1.0, 0.0, 0.0));
                 let rotate_y = glm::rotate(&glm::Mat4::identity(), rotation.y, &glm::vec3(0.0, 1.0, 0.0));
                 let rotate_z = glm::rotate(&glm::Mat4::identity(), rotation.z, &glm::vec3(0.0, 0.0, 1.0));
                 let scale = glm::scale(&glm::Mat4::identity(), scale);
-                let transformation_matrix = translate * rotate_x * rotate_y * rotate_z * scale;
+                let transformation_matrix = current_state.get_projection_matrix() * translate * rotate_x * rotate_y * rotate_z * scale;
 
                 gl.uniform_matrix4fv_with_f32_array(shader.get_uniform_location(&gl, "u_Transform").as_ref(), false, &transformation_matrix.as_slice());
 
