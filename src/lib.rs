@@ -48,16 +48,17 @@ impl WebGlClient {
         let shader_controller = ShaderController::new(&gl);
 
         Self {
-            //entities: vec![Box::new(Quad::new(&gl, ShaderType::BasicShader))],
-            entities: vec![Box::new(Graph3d::new(&gl, ShaderType::Graph3dShader, 10))],
+            entities: vec![
+                Box::new(Quad::new(&gl, ShaderType::BasicShader)),
+                Box::new(Graph3d::new(&gl, ShaderType::Graph3dShader, 100)),
+            ],
             gl: gl,
             shader_controller: shader_controller,
         }
     }
 
     pub fn update(&self, time: f32, height: f32, width: f32) -> Result<(), JsValue> {
-        update_app_state(width, height);
-        log(&format! {"Update {} x {}", width as i32, height as i32});
+        update_app_state(time, width, height);
         for e in self.entities.iter() {
             e.update(time);
         }
@@ -69,7 +70,7 @@ impl WebGlClient {
 
         let position = glm::vec3(0.0, 0.0, 0.0);
         let rotation = glm::vec3(0.0, 0.0, 0.0);
-        let scale = glm::vec3(0.2, 0.2, 1.0);
+        let scale = glm::vec3(1.0, 1.0, 1.0);
 
         for e in self.entities.iter() {
             e.render(&self.gl, &mut self.shader_controller, &position, &rotation, &scale);
@@ -90,7 +91,8 @@ impl WebGlClient {
 
         gl.enable(GL::BLEND);
         gl.blend_func(GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA);
-        gl.clear_color(0.1, 0.1, 0.9, 1.0);
+        gl.enable(GL::DEPTH_TEST);
+        gl.clear_color(0.2, 0.2, 0.2, 1.0);
         gl.clear_depth(1.0);
 
         Ok(gl)

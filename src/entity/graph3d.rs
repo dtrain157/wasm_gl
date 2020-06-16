@@ -18,6 +18,9 @@ pub struct Graph3d {
     shader_type: ShaderType,
     rect_vertex_array_buffer: WebGlBuffer,
     rect_index_array_length: usize,
+    y_values_array_buffer: WebGlBuffer,
+    normals_array_buffer: WebGlBuffer,
+    n: usize,
 }
 
 impl Entity for Graph3d {
@@ -25,27 +28,46 @@ impl Entity for Graph3d {
         let shader = shader_controller.get_shader(&self.shader_type);
         match shader {
             Some(shader) => {
+                let current_state = get_current_app_state();
+
                 shader_controller.use_shader(gl, self.shader_type);
+
                 gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.rect_vertex_array_buffer));
                 gl.vertex_attrib_pointer_with_i32(0, 3, GL::FLOAT, false, 0, 0);
                 gl.enable_vertex_attrib_array(0);
 
-                //gl.uniform4f(shader.get_uniform_location(&gl, "u_Colour").as_ref(), 0.1, 0.9, 0.1, 1.0);
+                gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.y_values_array_buffer));
+                gl.vertex_attrib_pointer_with_i32(1, 1, GL::FLOAT, false, 0, 0);
+                gl.enable_vertex_attrib_array(1);
 
-                let current_state = get_current_app_state();
+                let y_vals = self.get_updated_3d_y_values(current_state.time);
+                let y_values_array_memory_buffer = wasm_bindgen::memory().dyn_into::<WebAssembly::Memory>().unwrap().buffer();
+                let y_values_location = y_vals.as_ptr() as u32 / 4;
+                let y_values_array = js_sys::Float32Array::new(&y_values_array_memory_buffer).subarray(y_values_location, y_values_location + y_vals.len() as u32);
+                gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &y_values_array, GL::DYNAMIC_DRAW);
+
+                gl.bind_buffer(GL::ARRAY_BUFFER, Some(&self.normals_array_buffer));
+                gl.vertex_attrib_pointer_with_i32(2, 3, GL::FLOAT, false, 0, 0);
+                gl.enable_vertex_attrib_array(2);
+
+                let normals = self.get_grid_normals(&y_vals);
+                let normals_array_memory_buffer = wasm_bindgen::memory().dyn_into::<WebAssembly::Memory>().unwrap().buffer();
+                let normals_location = normals.as_ptr() as u32 / 4;
+                let normals_array = js_sys::Float32Array::new(&normals_array_memory_buffer).subarray(normals_location, normals_location + normals.len() as u32);
+                gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &normals_array, GL::DYNAMIC_DRAW);
+
                 let translate = glm::translate(&glm::Mat4::identity(), position);
-                let rotate_x = glm::rotate(&glm::Mat4::identity(), rotation.x, &glm::vec3(1.0, 0.0, 0.0));
-                let rotate_y = glm::rotate(&glm::Mat4::identity(), rotation.y, &glm::vec3(0.0, 1.0, 0.0));
-                let rotate_z = glm::rotate(&glm::Mat4::identity(), rotation.z, &glm::vec3(0.0, 0.0, 1.0));
-                let scale = glm::scale(&glm::Mat4::identity(), scale);
-                let transformation_matrix = translate * rotate_x * rotate_y * rotate_z * scale;
+                let rotate_x = glm::rotate_x(&glm::Mat4::identity(), rotation.y + current_state.rotation_y);
+                let rotate_y = glm::rotate_y(&glm::Mat4::identity(), rotation.x + current_state.rotation_x);
+                let rotate = rotate_x * rotate_y;
+                let scale = glm::scale(&rotate_y, scale);
+                let transformation_matrix = translate * rotate * scale;
+                let normals_rotation = rotate.try_inverse().unwrap();
+                let projection_matrix = current_state.get_projection_matrix();
 
+                gl.uniform_matrix4fv_with_f32_array(shader.get_uniform_location(&gl, "uNormalsRotation").as_ref(), false, &normals_rotation.as_slice());
                 gl.uniform_matrix4fv_with_f32_array(shader.get_uniform_location(&gl, "uModel").as_ref(), false, &transformation_matrix.as_slice());
-                gl.uniform_matrix4fv_with_f32_array(
-                    shader.get_uniform_location(&gl, "uViewProjection").as_ref(),
-                    false,
-                    &current_state.get_projection_matrix().as_slice(),
-                );
+                gl.uniform_matrix4fv_with_f32_array(shader.get_uniform_location(&gl, "uViewProjection").as_ref(), false, &projection_matrix.as_slice());
 
                 gl.draw_elements_with_i32(GL::TRIANGLES, self.rect_index_array_length as i32, GL::UNSIGNED_SHORT, 0);
             }
@@ -105,6 +127,68 @@ impl Graph3d {
             shader_type: shader_type,
             rect_vertex_array_buffer: vertex_array_buffer,
             rect_index_array_length: indices.len(),
+            y_values_array_buffer: gl.create_buffer().ok_or("Failed to create buffer").unwrap(),
+            normals_array_buffer: gl.create_buffer().ok_or("Failed to create buffer").unwrap(),
+            n: n,
         }
+    }
+
+    fn get_updated_3d_y_values(&self, curr_time: f32) -> Vec<f32> {
+        let point_count_per_row = self.n + 1;
+        let mut y_vals: Vec<f32> = vec![0.0; point_count_per_row * point_count_per_row];
+
+        let half_grid = point_count_per_row as f32 / 2.0;
+        let frequency_scale = 3.0 * std::f32::consts::PI;
+        let y_scale = 0.15;
+        let sin_offset = curr_time / 1000.0;
+
+        for z in 0..point_count_per_row {
+            for x in 0..point_count_per_row {
+                let use_y_index = z * point_count_per_row + x;
+                let scaled_x = frequency_scale * (x as f32 - half_grid) / half_grid;
+                let scaled_z = frequency_scale * (z as f32 - half_grid) / half_grid;
+                y_vals[use_y_index] = y_scale * ((scaled_x * scaled_x + scaled_z * scaled_z).sqrt() + sin_offset).sin();
+            }
+        }
+
+        y_vals
+    }
+
+    fn get_grid_normals(&self, y_vals: &Vec<f32>) -> Vec<f32> {
+        let point_count_per_row = self.n + 1;
+        let graph_layout_width = 2.0;
+        let square_size: f32 = graph_layout_width / self.n as f32;
+        let mut normals: Vec<f32> = vec![0.0; 3 * point_count_per_row * point_count_per_row];
+
+        for z in 0..point_count_per_row {
+            for x in 0..point_count_per_row {
+                let y_val_index_a = z * point_count_per_row + x;
+                let normals_start_index = 3 * y_val_index_a;
+
+                if z == self.n || x == self.n {
+                    normals[normals_start_index + 1] = 1.0;
+                } else {
+                    let y_val_index_b = y_val_index_a + point_count_per_row;
+                    let y_val_index_c = y_val_index_a + 1;
+
+                    let x_val_1 = square_size * x as f32;
+                    let x_val_2 = x_val_1 + square_size;
+
+                    let z_val_1 = square_size * z as f32;
+                    let z_val_2 = z_val_1 + square_size;
+
+                    let a = glm::vec3(x_val_1, y_vals[y_val_index_a], z_val_1);
+                    let b = glm::vec3(x_val_1, y_vals[y_val_index_b], z_val_2);
+                    let c = glm::vec3(x_val_2, y_vals[y_val_index_c], z_val_2);
+
+                    let normal = glm::triangle_normal(&a, &b, &c);
+
+                    normals[normals_start_index] = normal.x;
+                    normals[normals_start_index + 1] = normal.y;
+                    normals[normals_start_index + 2] = normal.z;
+                }
+            }
+        }
+        normals
     }
 }
