@@ -10,7 +10,7 @@ The web component of the project is set up to use NPM and WebPack. Once the Rust
 
 ## See also
 
-This work is heavily inspired by Doug Milford's tutorials , which can be found [here](https://www.youtube.com/watch?v=p7DtoeuDT5Y), [here](https://www.youtube.com/watch?v=kjYCSySObDo&t=526s), and [here](https://www.youtube.com/watch?v=K63uBfs1K7Y).
+This work is heavily inspired by Doug Milford's tutorials, which can be found [here](https://www.youtube.com/watch?v=p7DtoeuDT5Y), [here](https://www.youtube.com/watch?v=kjYCSySObDo&t=526s), and [here](https://www.youtube.com/watch?v=K63uBfs1K7Y).
 
 ## Licence
 
